@@ -1,0 +1,85 @@
+local http = game:GetService("HttpService")
+local Config = require(script.Config)
+
+function IsPlayerWhitelisted(player)
+	for _, groupId in ipairs(Config["whitelistedGroupIds"]) do
+		for _, roleId in ipairs(Config["whitelistedRoleIds"]) do
+			if player:IsInGroup(groupId) and player:GetRankInGroup(groupId) == roleId then
+				for _, roleId in ipairs(Config["whitelistedRoleIds"]) do
+					return true
+				end
+			end
+		end
+	end
+
+	return false
+end
+
+local function getAvatarImage(userId)
+	local HttpService = game:GetService("HttpService")
+	local url = string.format("https://thumbnails.roproxy.com/v1/users/avatar-headshot?userIds=%s&size=420x420&format=Png&isCircular=false", userId)
+
+	local response = HttpService:GetAsync(url)
+	local data = HttpService:JSONDecode(response)
+
+	if data and data.data and #data.data > 0 then
+		local imageUrl = data.data[1].imageUrl
+		return imageUrl
+	end
+end
+
+function SendMessageToDiscord(player, message)
+	if IsPlayerWhitelisted(player) then
+		local httpService = game:GetService("HttpService")
+		
+		local data1 = {
+			content = Config["pingOptions"]["tag"]
+		}
+		
+		local color = Color3.fromRGB(237, 42, 255)
+		local data
+		
+		if Config["NameAndImageDisplay"] == true then
+			data = {
+				["embeds"] = {{
+					["title"] = Config["embeds"]["title"],
+					["author"] = {
+						["name"] = player.Name,
+						["icon_url"] = getAvatarImage(player.UserId)
+					},
+					["color"] = tonumber(string.format("0x%02X%02X%02X", Config["embeds"]["color"].r * 255, Config["embeds"]["color"].g * 255, Config["embeds"]["color"].b * 255)),
+					["fields"] = {
+						{
+							["name"] = Config["embeds"]["fields"]["name"],
+							["value"] = Config["embeds"]["fields"]["value"],
+							["inline"] = Config["embeds"]["fields"]["inline"]
+						}
+					},
+				}},
+			} 
+		elseif Config["NameAndImageDisplay"] == false then
+			data = {
+				["embeds"] = {{
+					["title"] = Config["embeds"]["title"],
+					["color"] = tonumber(string.format("0x%02X%02X%02X", Config["embeds"]["color"].r * 255, Config["embeds"]["color"].g * 255, Config["embeds"]["color"].b * 255)),
+					["fields"] = {
+						{
+							["name"] = Config["embeds"]["fields"]["name"],
+							["value"] = Config["embeds"]["fields"]["value"],
+							["inline"] = Config["embeds"]["fields"]["inline"]
+						}
+					},
+				}},
+			} 
+		end
+		
+		local json = httpService:JSONEncode(data)
+		local json1 = httpService:JSONEncode(data1)
+		if Config["pingOptions"]["enabled"] == true then
+			local response = httpService:PostAsync(Config["webhookURL"], json1, Enum.HttpContentType.ApplicationJson)
+		end
+		local response = httpService:PostAsync(Config["webhookURL"], json)
+	end
+end
+
+Config.ConfigureWebhookTrigger(SendMessageToDiscord)
